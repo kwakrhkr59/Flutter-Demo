@@ -26,9 +26,10 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = CameraController(widget.camera, ResolutionPreset.medium);
+    _controller = CameraController(widget.camera, ResolutionPreset.medium, enableAudio: false);
     _controller.initialize().then((_) async {
       if (!mounted) return;
+      await _controller.setFlashMode(FlashMode.off);  // 플래시 비활성화 추가
       _minZoom = await _controller.getMinZoomLevel();
       _maxZoom = await _controller.getMaxZoomLevel();
       setState(() {});
