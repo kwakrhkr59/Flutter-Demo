@@ -1,0 +1,2 @@
+C:/Green-Ball/app/android/app/.cxx/Debug/11134s1v/x86_64/CMakeFiles/edit_cache.dir
+C:/Green-Ball/app/android/app/.cxx/Debug/11134s1v/x86_64/CMakeFiles/rebuild_cache.dir

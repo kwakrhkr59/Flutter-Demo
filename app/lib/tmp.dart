@@ -1,10 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:http_parser/http_parser.dart';
 import 'package:camera/camera.dart';
-import 'package:dio/dio.dart';
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:mime/mime.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final cameras = await availableCameras();
+  final firstCamera = cameras.first;
+
+  runApp(MyApp(camera: firstCamera));
+}
+
+class MyApp extends StatelessWidget {
+  final CameraDescription camera;
+
+  const MyApp({Key? key, required this.camera}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: CameraScreen(camera: camera),
+    );
+  }
+}
 
 class CameraScreen extends StatefulWidget {
   final CameraDescription camera;
@@ -18,19 +36,13 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   late CameraController _controller;
   double _currentZoom = 1.0;
-  double _minZoom = 1.0;
-  double _maxZoom = 8.0;
-  final Dio _dio = Dio();
-  final String _baseUrl = "http://192.168.219.104:8000/photo";
 
   @override
   void initState() {
     super.initState();
     _controller = CameraController(widget.camera, ResolutionPreset.medium);
-    _controller.initialize().then((_) async {
+    _controller.initialize().then((_) {
       if (!mounted) return;
-      _minZoom = await _controller.getMinZoomLevel();
-      _maxZoom = await _controller.getMaxZoomLevel();
       setState(() {});
     });
   }
@@ -42,47 +54,12 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   void _zoomCamera(double zoom) async {
+    final maxZoom = await _controller.getMaxZoomLevel();
+    final minZoom = await _controller.getMinZoomLevel();
     setState(() {
-      _currentZoom = zoom.clamp(_minZoom, _maxZoom);
+      _currentZoom = zoom.clamp(minZoom, maxZoom);
     });
     _controller.setZoomLevel(_currentZoom);
-  }
-
-  Future<void> _uploadAndProcessImage(String imagePath) async {
-    try {
-      File imageFile = File(imagePath);
-      String fileName = imageFile.path.split('/').last;
-      String? mimeType = lookupMimeType(imageFile.path) ?? "image/jpeg";
-
-      FormData formData = FormData.fromMap({
-        "file": await MultipartFile.fromFile(
-          imageFile.path,
-          filename: fileName,
-          contentType: MediaType.parse(mimeType),
-        ),
-      });
-
-      var classifyResponse = await _dio.post("$_baseUrl/classify/", data: formData);
-      print("Classify Response: ${classifyResponse.data}");
-      print(classifyResponse.data["message"]);
-
-      int predictedClass = classifyResponse.data["data"]["predicted_class"];
-      print("Predicted Class: $predictedClass");
-
-      String imageUrl = classifyResponse.data["data"]["image_url"];
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DisplayPictureScreen(
-            imageUrl: imageUrl,
-            predictedClass: predictedClass,
-          ),
-        ),
-      );
-    } catch (e) {
-      print("Error uploading image: $e");
-    }
   }
 
   @override
@@ -98,7 +75,9 @@ class _CameraScreenState extends State<CameraScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.account_circle, color: Colors.orange),
-            onPressed: () {},
+            onPressed: () {
+              // 사용자 정보 화면 이동
+            },
           ),
         ],
       ),
@@ -120,8 +99,8 @@ class _CameraScreenState extends State<CameraScreen> {
                 Expanded(
                   child: Slider(
                     activeColor: Colors.orange,
-                    min: _minZoom,
-                    max: _maxZoom,
+                    min: 1.0,
+                    max: 8.0,
                     value: _currentZoom,
                     onChanged: (value) => _zoomCamera(value),
                   ),
@@ -140,7 +119,12 @@ class _CameraScreenState extends State<CameraScreen> {
                 try {
                   final image = await _controller.takePicture();
                   if (!mounted) return;
-                  _uploadAndProcessImage(image.path);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DisplayPictureScreen(imagePath: image.path),
+                    ),
+                  );
                 } catch (e) {
                   print("Error taking picture: $e");
                 }
@@ -162,29 +146,15 @@ class _CameraScreenState extends State<CameraScreen> {
 }
 
 class DisplayPictureScreen extends StatelessWidget {
-  final String imageUrl;
-  final int predictedClass;
+  final String imagePath;
 
-  const DisplayPictureScreen({
-    Key? key,
-    required this.imageUrl,
-    required this.predictedClass,
-  }) : super(key: key);
+  const DisplayPictureScreen({Key? key, required this.imagePath}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Captured Image')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.network(imageUrl),
-            SizedBox(height: 20),
-            Text('Predicted Class: $predictedClass', style: TextStyle(fontSize: 24)),
-          ],
-        ),
-      ),
+      body: Center(child: Image.file(File(imagePath))),
     );
   }
 }
