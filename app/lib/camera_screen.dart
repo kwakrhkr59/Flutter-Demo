@@ -3,8 +3,8 @@ import 'package:http_parser/http_parser.dart';
 import 'package:camera/camera.dart';
 import 'package:dio/dio.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:mime/mime.dart';
+import 'art_teller_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   final CameraDescription camera;
@@ -50,6 +50,14 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Future<void> _uploadAndProcessImage(String imagePath) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
     try {
       File imageFile = File(imagePath);
       String fileName = imageFile.path.split('/').last;
@@ -63,28 +71,29 @@ class _CameraScreenState extends State<CameraScreen> {
         ),
       });
 
-      var classifyResponse = await _dio.post("$_baseUrl/classify/", data: formData);
-      print("Classify Response: ${classifyResponse.data}");
-      print(classifyResponse.data["message"]);
+      final userid = "user0";
+      var classifyResponse = await _dio.post("$_baseUrl/classify/$userid", data: formData);
 
-      int predictedClass = classifyResponse.data["data"]["predicted_class"];
-      print("Predicted Class: $predictedClass");
+      Navigator.pop(context); // 로딩 화면 닫기
 
       String imageUrl = classifyResponse.data["data"]["image_url"];
+      int predictedClass = classifyResponse.data["data"]["predicted_class"];
 
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => DisplayPictureScreen(
+          builder: (context) => ArtTellerScreen(
             imageUrl: imageUrl,
             predictedClass: predictedClass,
           ),
         ),
       );
     } catch (e) {
+      Navigator.pop(context); // 에러 발생 시에도 로딩 화면 닫기
       print("Error uploading image: $e");
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -94,12 +103,19 @@ class _CameraScreenState extends State<CameraScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Art Teller", style: TextStyle(color: Colors.orange)),
+        title: const Text("Art Teller", style: TextStyle(
+            fontSize: 32.0,
+            fontWeight: FontWeight.bold,
+            color: Colors.orange)),
+        centerTitle: true,
         backgroundColor: Colors.black,
         actions: [
           IconButton(
             icon: const Icon(Icons.account_circle, color: Colors.orange),
-            onPressed: () {},
+            onPressed: () {
+              // 사용자 정보 화면 이동 기능 추가 가능
+              print("사용자 아이콘 클릭됨");
+            },
           ),
         ],
       ),
@@ -142,6 +158,12 @@ class _CameraScreenState extends State<CameraScreen> {
                   final image = await _controller.takePicture();
                   if (!mounted) return;
                   _uploadAndProcessImage(image.path);
+                  // Navigator.push(
+                  //   context,
+                  //   MaterialPageRoute(
+                  //     builder: (context) => ArtTellerScreen(imagePath: image.path),
+                  //   ),
+                  // );
                 } catch (e) {
                   print("Error taking picture: $e");
                 }
@@ -157,34 +179,6 @@ class _CameraScreenState extends State<CameraScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class DisplayPictureScreen extends StatelessWidget {
-  final String imageUrl;
-  final int predictedClass;
-
-  const DisplayPictureScreen({
-    Key? key,
-    required this.imageUrl,
-    required this.predictedClass,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Captured Image')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.network(imageUrl),
-            SizedBox(height: 20),
-            Text('Predicted Class: $predictedClass', style: TextStyle(fontSize: 24)),
-          ],
-        ),
       ),
     );
   }
